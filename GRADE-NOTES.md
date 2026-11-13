@@ -28,28 +28,30 @@ House baseline re-scored locally on p00–p04 (sanity check of my scorer):
 | 9 | + sum reversion (S → 1.0, share-weighted, srev 0.8, τ 60 m) | **0.315395** | big win, concentrated in p00/p02 where \|S−1\| was large |
 | 10 | retune σ/tail on top of sum reversion: ×0.3, tail 1.3 | **0.313309** | final config |
 | 11 | + jump reversion on final config | 0.312352 | +0.001, flips p03 worse — dropped as noise |
+| 12 | σ half-life 180 → 120 min (single-parameter change) | **0.310420** | kept. Variants tested first and rejected: TAIL 1.2/1.4 (0.3136/0.3133), SIGMA_MULT 0.25/0.35 (0.3154/0.3144), SUM_REVERT 0.9/1.0 (0.3135/0.3142), SUM_TAU 45/90 (0.3134/0.3139), HL 240 (0.3165), DIFF_CAP 0.03 (0.3170), SIGMA_FLOOR 0.0003 (0.3114). Shorter HL 90/60/45 scored 0.3090/0.3070/0.3066 but only by chasing p03 while p00 worsened steadily (0.4142/0.4182/0.4262) — overfitting, not kept. HL 120: p01/p02/p03 better, p00/p04 near-neutral; most of the gain is still p03 (0.3027 → 0.2912), so treat the −0.0029 as a modest, regime-tracking improvement, not a breakthrough. |
 
-## Final config (in main.py)
+## Final config (in main.py, after iteration 12)
 
-- σ: EWMA variance of 1-min moves, half-life 180 min, last 24 h, winsorised
+- σ: EWMA variance of 1-min moves, half-life 120 min, last 24 h, winsorised
   ±0.05, ×0.3, floor 0.0005.
 - Spread: σ·√h, outer quantiles ×1.3.
 - Drift: sum reversion only — 80% of (Σ prices − 1.0) removed with τ = 60 min,
   distributed by market share. No own-trend drift, no trailing-mean pull.
-- Per-case losses: p00 0.4111, p01 0.3149, p02 0.3366, p03 0.3027,
-  p04 0.2013. Median error 0.57–1.25, 90% coverage 0.90–0.94 (baseline:
+- Per-case losses: p00 0.4122, p01 0.3117, p02 0.3352, p03 0.2912,
+  p04 0.2018. Median error 0.57–1.25, 90% coverage 0.88–0.93 (baseline:
   0.87–0.98, over-covering).
 - Beats the house baseline on every scoreable practice case
-  (−21% mean loss). Practice is no guide to the final, so parameters
+  (−22% mean loss). Practice is no guide to the final, so parameters
   are deliberately few and coarse.
 
-## Verification (2026-11-13, before hand-off)
+## Verification (2026-11-13, after iteration 12)
 
 - Two full runs over all 6 practice cases: byte-identical outputs.
 - All 6 outputs valid: exactly one `forecasts` key, every case market
   once, 240 rows × 5 numbers, each in [0, 1], non-decreasing per row,
   ≤ 1 MiB (192–255 KB).
-- Single-case run (one `.in` in /input, as the grader does): 0.10 s.
-  Full 6-case run: ~0.36 s. Limit is 8 s per case.
+- Single-case run (one `.in` in /input, as the grader does): 0.09 s.
+  Full 6-case run: ~0.47 s. Limit is 8 s per case.
 - Python 3.12.3 locally (grader uses 3.13); stdlib only, no network,
   no reads outside the case file.
+- Final practice mean (local scorer, p00–p04): 0.310420.

@@ -13,7 +13,7 @@ Method (per market, fitted on the six practice cases; see README.md):
     excess is traded away over the next hour, distributed across markets
     in proportion to each market's share of the sum.
   * Spread: each market gets its own volatility, an exponentially weighted
-    (half-life 3 hours, last 24 hours only) variance of its 1-minute price
+    (half-life 2 hours, last 24 hours only) variance of its 1-minute price
     moves, winsorised at +-0.05 so rare huge jumps do not dominate it,
     scaled by 0.3 and floored at 0.0005.  The spread grows like the square
     root of the horizon, with the 5%/95% quantiles widened a further 1.3x
@@ -41,7 +41,13 @@ Z = [-1.644854, -0.67449, 0.0, 0.67449, 1.644854]
 
 # --- tuned constants (see README.md for how each was chosen) ---
 # Half-life, in minutes, of the exponential weights on past 1-minute moves.
-SIGMA_HALF_LIFE_MIN = 180.0
+# Iteration 12: 180 -> 120. Price moves cluster (quiet stretches, then
+# bursts), so a 2-hour half-life tracks the market's current regime better
+# than 3 hours: practice mean 0.313309 -> 0.310420, better on p01/p02/p03,
+# near-neutral on p00/p04. Shorter half-lives (60/45) scored lower still
+# but only by chasing p03 while p00 worsened steadily, so 120 is kept as
+# the coarse, defensible choice rather than the practice optimum.
+SIGMA_HALF_LIFE_MIN = 120.0
 # 1-minute moves are winsorised to this range before entering the variance.
 DIFF_CAP = 0.05
 # Only the most recent that many minutes of history feed the volatility.

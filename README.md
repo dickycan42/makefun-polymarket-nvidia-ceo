@@ -27,7 +27,7 @@ One program, one case at a time. For each market:
   0.81–1.09 at the practice checkpoints and reverted toward 1 within the
   4-hour horizon in most cases.
 - **Spread — per-market volatility.** An exponentially weighted variance
-  (half-life 3 hours, last 24 hours only) of the market's 1-minute price
+  (half-life 2 hours, last 24 hours only) of the market's 1-minute price
   moves, winsorised at ±0.05 so rare huge jumps do not dominate, scaled
   by 0.3 and floored at 0.0005. The spread grows with the square root of
   the horizon; the outer 5%/95% quantiles are widened a further 1.3x
@@ -50,9 +50,9 @@ against, so p05 is checked for validity only).
 | entry | mean pinball loss, p00–p04 |
 | --- | --- |
 | house baseline (fixed σ = 0.0025) | 0.398458 |
-| this entry | **0.313309** |
+| this entry | **0.310420** |
 
-Per case: p00 0.4111, p01 0.3149, p02 0.3366, p03 0.3027, p04 0.2013.
+Per case: p00 0.4122, p01 0.3117, p02 0.3352, p03 0.2912, p04 0.2018.
 The house baseline scores 0.363589 over all six practice cases (published
 in the kit's rules); this entry beats it on every one of the five
 scoreable cases. The practice is no guide to the final — the final runs
