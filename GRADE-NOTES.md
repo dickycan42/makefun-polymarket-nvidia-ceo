@@ -30,28 +30,45 @@ House baseline re-scored locally on p00–p04 (sanity check of my scorer):
 | 11 | + jump reversion on final config | 0.312352 | +0.001, flips p03 worse — dropped as noise |
 | 12 | σ half-life 180 → 120 min (single-parameter change) | **0.310420** | kept. Variants tested first and rejected: TAIL 1.2/1.4 (0.3136/0.3133), SIGMA_MULT 0.25/0.35 (0.3154/0.3144), SUM_REVERT 0.9/1.0 (0.3135/0.3142), SUM_TAU 45/90 (0.3134/0.3139), HL 240 (0.3165), DIFF_CAP 0.03 (0.3170), SIGMA_FLOOR 0.0003 (0.3114). Shorter HL 90/60/45 scored 0.3090/0.3070/0.3066 but only by chasing p03 while p00 worsened steadily (0.4142/0.4182/0.4262) — overfitting, not kept. HL 120: p01/p02/p03 better, p00/p04 near-neutral; most of the gain is still p03 (0.3027 → 0.2912), so treat the −0.0029 as a modest, regime-tracking improvement, not a breakthrough. |
 
-## Final config (in main.py, after iteration 12)
+## Final config v2 (in main.py, iteration 13, 13 Nov 2026)
 
-- σ: EWMA variance of 1-min moves, half-life 120 min, last 24 h, winsorised
-  ±0.05, ×0.3, floor 0.0005.
+- σ: max of two EWMA variances of 1-min moves — fast half-life 30 min,
+  slow half-life 120 min, last 24 h, winsorised ±0.05, ×0.3, floor 0.0005.
 - Spread: σ·√h, outer quantiles ×1.3.
 - Drift: sum reversion only — 80% of (Σ prices − 1.0) removed with τ = 60 min,
   distributed by market share. No own-trend drift, no trailing-mean pull.
-- Per-case losses: p00 0.4122, p01 0.3117, p02 0.3352, p03 0.2912,
-  p04 0.2018. Median error 0.57–1.25, 90% coverage 0.88–0.93 (baseline:
+- Per-case losses: p00 0.4116, p01 0.3113, p02 0.3283, p03 0.2656,
+  p04 0.2013. Median error 0.57–1.25, 90% coverage 0.88–0.95 (baseline:
   0.87–0.98, over-covering).
 - Beats the house baseline on every scoreable practice case
-  (−22% mean loss). Practice is no guide to the final, so parameters
-  are deliberately few and coarse.
+  (−24% mean loss) and beats v1 on every case (−2.2% mean).
+- Iteration 13 (v2): max-blend σ (fast HL30 + slow HL120, take the max)
+  **0.303647**. Per-case vs v1: p00 0.4122→0.4116, p01 0.3117→0.3113,
+  p02 0.3352→0.3283, p03 0.2912→0.2656, p04 0.2018→0.2013 — all five
+  improve, all five LOCO means improve. Neighbourhood is flat: max HL20
+  0.303532, HL30 0.303647, HL45 0.305063; smult 0.28/0.32 at HL30
+  0.303991/0.303968; srev 0.6/1.0 0.304595/0.305186; tau_s 45/90
+  0.303803/0.303945 — nothing else retuned, HL30 kept as the middle of
+  the flat region. The average blend (w 0.5, HL10) also scored 0.303848
+  but worsened p00 (0.4122→0.4206); the max blend does not, because it
+  only ever widens σ relative to the slow regime — volatility rises fast
+  after a burst and falls slow.
+- Dropped in v2 work: compound-jump spread (atom at zero + empirical
+  jump sizes, exact mixture CDF) — 0.606 unscaled, 0.339 at ×0.3 scale,
+  far worse: 1-min moves are not iid, big jumps partly revert, so any
+  iid-based shape overstates the horizon's tails; asymmetric outer tails
+  (down ×1.5 / up ×1.1, matching the jump skew) — 0.311021, nothing.
 
-## Verification (2026-11-13, after iteration 12)
+## Verification v2 (2026-11-13, after iteration 13)
 
 - Two full runs over all 6 practice cases: byte-identical outputs.
+  One more run after fusing the two EWMA passes into a single loop:
+  byte-identical to the pre-fusion outputs.
 - All 6 outputs valid: exactly one `forecasts` key, every case market
   once, 240 rows × 5 numbers, each in [0, 1], non-decreasing per row,
   ≤ 1 MiB (192–255 KB).
-- Single-case run (one `.in` in /input, as the grader does): 0.09 s.
-  Full 6-case run: ~0.47 s. Limit is 8 s per case.
+- Single-case run (one `.in` in /input, as the grader does): 0.095 s.
+  Full 6-case run: ~0.5 s. Limit is 8 s per case.
 - Python 3.12.3 locally (grader uses 3.13); stdlib only, no network,
   no reads outside the case file.
-- Final practice mean (local scorer, p00–p04): 0.310420.
+- Final practice mean (local scorer, p00–p04): 0.303647.

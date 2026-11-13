@@ -26,13 +26,18 @@ One program, one case at a time. For each market:
   single biggest improvement over the house baseline: the sum sat at
   0.81–1.09 at the practice checkpoints and reverted toward 1 within the
   4-hour horizon in most cases.
-- **Spread — per-market volatility.** An exponentially weighted variance
-  (half-life 2 hours, last 24 hours only) of the market's 1-minute price
-  moves, winsorised at ±0.05 so rare huge jumps do not dominate, scaled
-  by 0.3 and floored at 0.0005. The spread grows with the square root of
-  the horizon; the outer 5%/95% quantiles are widened a further 1.3x
-  because the moves are heavy-tailed (87% of minutes do not move at all,
-  then a jump).
+- **Spread — per-market volatility, fast+slow max blend.** Two
+  exponentially weighted variances of the market's 1-minute price moves
+  (half-lives 30 minutes and 2 hours, last 24 hours only), winsorised at
+  ±0.05, and the LARGER of the two is taken, scaled by 0.3 and floored at
+  0.0005. Volatility clusters: it jumps up fast after a burst and decays
+  slowly, so the spread should rise fast and fall slow. A plain average
+  of the two also helped but hurt the quietest practice case (it narrows
+  the spread whenever the last half hour was quiet); the max never
+  narrows below the slow regime's level. The spread grows with the
+  square root of the horizon; the outer 5%/95% quantiles are widened a
+  further 1.3x because the moves are heavy-tailed (87% of minutes do not
+  move at all, then a jump).
 - **No own-trend drift.** One-minute moves show no usable autocorrelation
   (lag-1 ≈ −0.07), and pulling the median toward a trailing mean made the
   practice score worse — old deviations are regime shifts, not temporary
@@ -50,14 +55,16 @@ against, so p05 is checked for validity only).
 | entry | mean pinball loss, p00–p04 |
 | --- | --- |
 | house baseline (fixed σ = 0.0025) | 0.398458 |
-| this entry | **0.310420** |
+| v1 entry (single EWMA σ, HL 120) | 0.310420 |
+| **v2 entry (fast+slow max-blend σ)** | **0.303647** |
 
-Per case: p00 0.4122, p01 0.3117, p02 0.3352, p03 0.2912, p04 0.2018.
-The house baseline scores 0.363589 over all six practice cases (published
-in the kit's rules); this entry beats it on every one of the five
-scoreable cases. The practice is no guide to the final — the final runs
-on 48 hours of prices nobody had seen when entries closed — so the
-parameters above are deliberately few and coarse (see GRADE-NOTES.md
+Per case (v2): p00 0.4116, p01 0.3113, p02 0.3283, p03 0.2656, p04 0.2013.
+v2 beats v1 on every one of the five scoreable cases, and every
+leave-one-case-out mean improves too; the HL 20–45 neighbourhood is flat
+(0.3035–0.3051), so the gain is a mechanism (volatility rises fast, falls
+slow), not a tuned constant. The practice is no guide to the final — the
+final runs on 48 hours of prices nobody had seen when entries closed — so
+the parameters above are deliberately few and coarse (see GRADE-NOTES.md
 for the full iteration log).
 
 ## Files

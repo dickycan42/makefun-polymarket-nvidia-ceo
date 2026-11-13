@@ -12,16 +12,29 @@ Method (per market, fitted on the six practice cases; see README.md):
     exclusive outcomes); when their sum at the checkpoint is off 1, the
     excess is traded away over the next hour, distributed across markets
     in proportion to each market's share of the sum.
-  * Spread: each market gets its own volatility, an exponentially weighted
-    (half-life 2 hours, last 24 hours only) variance of its 1-minute price
-    moves, winsorised at +-0.05 so rare huge jumps do not dominate it,
-    scaled by 0.3 and floored at 0.0005.  The spread grows like the square
-    root of the horizon, with the 5%/95% quantiles widened a further 1.3x
-    because the moves are heavy-tailed.
+  * Spread: each market gets its own volatility from TWO exponentially
+    weighted variances of its 1-minute price moves — a fast one (half-life
+    30 minutes) and a slow one (half-life 2 hours, last 24 hours only) —
+    and takes the LARGER of the two. Volatility clusters: it jumps up
+    fast after a burst of moves and decays slowly, so the forecast's
+    spread should rise fast and fall slow. A plain average of the two
+    would also narrow the spread whenever the last half hour was quiet,
+    which under-spreads the next burst; the max never narrows below the
+    slow regime's level. Both variances are winsorised at +-0.05 so rare
+    huge jumps do not dominate them, scaled by 0.3 and floored at 0.0005.
+    The spread grows like the square root of the horizon, with the 5%/95%
+    quantiles widened a further 1.3x because the moves are heavy-tailed.
   * No drift from the market's own recent trend: 1-minute moves show no
     usable autocorrelation, and pulling the median toward a trailing mean
     made the practice score worse (old deviations are regime shifts, not
     temporary excursions).
+
+What was tried and dropped (see GRADE-NOTES.md): a compound-jump spread
+built from the market's own jump distribution (atom at zero + empirical
+jump sizes) scored far worse — 1-minute moves are not iid, big jumps
+partly revert, so any iid-based shape overstates the horizon's tails;
+asymmetric outer tails (down wider than up, matching the jump skew) gave
+nothing; a fast+slow AVERAGE blend helped but hurt the quietest case.
 
 Standard library only, no network, no reads outside the case file, fully
 deterministic: the same case always yields the same bytes.
@@ -40,14 +53,12 @@ QUANTILES = [0.05, 0.25, 0.5, 0.75, 0.95]
 Z = [-1.644854, -0.67449, 0.0, 0.67449, 1.644854]
 
 # --- tuned constants (see README.md for how each was chosen) ---
-# Half-life, in minutes, of the exponential weights on past 1-minute moves.
-# Iteration 12: 180 -> 120. Price moves cluster (quiet stretches, then
-# bursts), so a 2-hour half-life tracks the market's current regime better
-# than 3 hours: practice mean 0.313309 -> 0.310420, better on p01/p02/p03,
-# near-neutral on p00/p04. Shorter half-lives (60/45) scored lower still
-# but only by chasing p03 while p00 worsened steadily, so 120 is kept as
-# the coarse, defensible choice rather than the practice optimum.
-SIGMA_HALF_LIFE_MIN = 120.0
+# Half-life, in minutes, of the fast exponential weights on past moves.
+# The fast variance tracks the market's current burst; the slow one (below)
+# holds the regime level. The max of the two is the volatility.
+SIGMA_HALF_LIFE_FAST_MIN = 30.0
+# Half-life, in minutes, of the slow exponential weights.
+SIGMA_HALF_LIFE_SLOW_MIN = 120.0
 # 1-minute moves are winsorised to this range before entering the variance.
 DIFF_CAP = 0.05
 # Only the most recent that many minutes of history feed the volatility.
@@ -72,12 +83,20 @@ def price6(x):
 
 
 def market_sigma(prices):
-    """Per-minute volatility from recent 1-minute moves (winsorised EWMA)."""
+    """Per-minute volatility: the larger of a fast and a slow EWMA variance.
+
+    Rises fast after a burst (the 30-minute half-life reacts within minutes)
+    and falls slow (the 2-hour half-life holds the regime level), which is
+    how realised volatility behaves here. Both variances are computed in a
+    single pass over the window, then scaled and floored like before.
+    """
     n = len(prices)
     if n < 2:
         return SIGMA_FLOOR
-    alpha = 1.0 - 0.5 ** (1.0 / SIGMA_HALF_LIFE_MIN)
-    var = 0.0
+    alpha_fast = 1.0 - 0.5 ** (1.0 / SIGMA_HALF_LIFE_FAST_MIN)
+    alpha_slow = 1.0 - 0.5 ** (1.0 / SIGMA_HALF_LIFE_SLOW_MIN)
+    var_fast = 0.0
+    var_slow = 0.0
     start = n - SIGMA_WINDOW_MIN if n > SIGMA_WINDOW_MIN else 1
     for i in range(start, n):
         d = prices[i] - prices[i - 1]
@@ -85,7 +104,10 @@ def market_sigma(prices):
             d = DIFF_CAP
         elif d < -DIFF_CAP:
             d = -DIFF_CAP
-        var = alpha * d * d + (1.0 - alpha) * var
+        d2 = d * d
+        var_fast = alpha_fast * d2 + (1.0 - alpha_fast) * var_fast
+        var_slow = alpha_slow * d2 + (1.0 - alpha_slow) * var_slow
+    var = var_fast if var_fast > var_slow else var_slow
     sigma = math.sqrt(var) * SIGMA_MULT
     return sigma if sigma > SIGMA_FLOOR else SIGMA_FLOOR
 
